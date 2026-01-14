@@ -15,7 +15,7 @@ from PIL import Image
 
 # Install missing packages if running in an environment where they might not persist
 print("Installation des dépendances...")
-!pip install -q streamlit reportlab Pillow
+#!pip install -q streamlit reportlab Pillow
 print("Dépendances installées.")
 
 # ----------------------------
