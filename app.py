@@ -350,7 +350,7 @@ st.write("Si aucune couleur n'est indiqu\u00e9e (maquestion1 ; ma r\u00e9ponse1)
 st.write("Le nom du fichier image dans la 3e colonne du CSV doit correspondre exactement au nom d'un fichier PNG/JPG dans le ZIP d'images recto.")
 st.write("le recto peut être vide (format : ; ma r\u00e9ponse1). Dans ce cas, le recto sera vide et de couleur bleu.")
 st.write("le recto peut être vide avec une indication de couleur (format : (jaune); ma r\u00e9ponse1). Dans ce cas, le recto sera vide et de couleur jaune.")
-st.write("le recto peut contenir une image mais pas de texte (format : ;ma r\u00e9ponse1, mon_image_recto1.png). Dans cet exemple, le recto comprendra une image agrandie à 90 % de la hauteur de la carte et sera de couleur bleue.")
+st.write("le recto peut contenir une image mais pas de texte (format : ;ma r\u00e9ponse1 ; mon_image_recto1.png). Dans cet exemple, le recto comprendra une image agrandie à 90 % de la hauteur de la carte et sera de couleur bleue.")
 st.write("utilisez l'application Bloc-notes sous windows pour générer le fichier CSV puis enregistrez le sous la forme nom_fichier.csv (au lieu de .txt) avec un encodage UTF8.")         
 
 # CSV Upload
