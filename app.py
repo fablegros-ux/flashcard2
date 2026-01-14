@@ -339,12 +339,16 @@ st.title("Générateur de cartes à tout faire")
 
 st.write("Uploadez votre fichier CSV et un fichier ZIP d'images (facultatif) pour générer 10 cartes recto/verso sur une feuille A4 pdf.")
 st.text("Le contenu du fichier CSV est constitu\u00e9e au maximum de 10 lignes du type :")
-st.text("ma question1 (couleur) ; ma r\u00e9ponse1 ; mon_image_recto.png")
-st.text("ma question2 (couleur) ; ma r\u00e9ponse2")
+st.text("ma question1 (couleur) ; ma r\u00e9ponse1 ; mon_image_recto1.png")
+st.text("ma question2 (couleur) ; ma r\u00e9ponse2"; mon image_recto2.png")
 st.text("etc.")
 st.write("(couleur) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune. ")
-st.write("Si aucune couleur n'est indiqu\u00e9e (maquestion1 ; mar\u00e9ponse1) alors la couleur par d\u00e9faut du recto est le bleu.")
+st.write("Si aucune couleur n'est indiqu\u00e9e (maquestion1 ; ma r\u00e9ponse1) alors la couleur par d\u00e9faut du recto est le bleu.")
 st.write("Le nom du fichier image dans la 3e colonne du CSV doit correspondre exactement au nom d'un fichier PNG/JPG dans le ZIP d'images recto.")
+st.write("le recto peut être vide (format : ; ma r\u00e9ponse1). Dans ce cas, le recto sera vide et de couleur bleu.")
+st.write("le recto peut vide avec une indication de couleur (format : (jaune); ma r\u00e9ponse1). Dans ce cas, le recto sera vide et de couleur jaune.")
+st.write("le recto peut contenir une image mais pas de texte (format : ;ma r\u00e9ponse1, mon_image_recto1.png). Dans cet exemple, le recto comprendra une image agrandie à 90 % de la hauteur de la carte et sera de couleur bleue.")
+         
 
 # CSV Upload
 uploaded_csv_file = st.file_uploader("Uploader le fichier CSV", type=["csv"])
