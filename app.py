@@ -391,9 +391,9 @@ elif uploaded_csv_file is not None:
 
     cards = read_cards_from_csv(csv_content)
     # Debugging output for parsed cards
-    st.info("Données des cartes parsées (pour débogage):")
-    for i, card in enumerate(cards):
-        st.text(f"  Carte {i+1}: Question='{card['question']}', Texte='{card['texte']}', Couleur='{card['card_color_key']}', Image Recto='{card['image_recto']}'")
+    #st.info("Données des cartes parsées (pour débogage):")
+    #for i, card in enumerate(cards):
+     #   st.text(f"  Carte {i+1}: Question='{card['question']}', Texte='{card['texte']}', Couleur='{card['card_color_key']}', Image Recto='{card['image_recto']}'")
 
     st.info(f"Lignes lues : {len(cards)} (on utilise les {NB_CARTES} premi\u00e8res)")
 
