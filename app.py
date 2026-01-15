@@ -13,6 +13,11 @@ from reportlab.lib.enums import TA_CENTER
 from reportlab.lib.utils import ImageReader
 from PIL import Image
 
+# Install missing packages if running in an environment where they might not persist
+print("Installation des dépendances...")
+!pip install -q streamlit reportlab Pillow
+print("Dépendances installées.")
+
 # ----------------------------
 # Réglages
 # ----------------------------
@@ -71,17 +76,49 @@ def is_dark(c: colors.Color) -> bool:
     return lum < 0.55
 
 def sniff_dialect(data: str) -> csv.Dialect:
-    sniffer = csv.Sniffer()
-    # Force semicolon if present, otherwise try to sniff
-    if ';' in data[:4096]:
-        class SemicolonDialect(csv.excel):
-            delimiter = ';'
-        return SemicolonDialect()
+    # Try semicolon first
+    if ';' in data:
+        try:
+            # Check if semicolon works as a reasonable delimiter (e.g., more than one field)
+            test_reader = csv.reader(io.StringIO(data), delimiter=';')
+            # Check if any row has more than one field, or if there's a header with semicolons
+            first_few_lines = data.splitlines()[:5] # Check first 5 lines for consistency
+            if any(len(row) > 1 for row in test_reader) or all(';' in line for line in first_few_lines if line.strip()):
+                class SemicolonDialect(csv.excel):
+                    delimiter = ';'
+                return SemicolonDialect()
+        except Exception:
+            pass # Fall through to other options if this fails
+
+    # Try comma
+    if ',' in data:
+        try:
+            test_reader = csv.reader(io.StringIO(data), delimiter=',')
+            if any(len(row) > 1 for row in test_reader):
+                class CommaDialect(csv.excel):
+                    delimiter = ','
+                return CommaDialect()
+        except Exception:
+            pass # Fall through
+
+    # Try tab
+    if '\t' in data:
+        try:
+            test_reader = csv.reader(io.StringIO(data), delimiter='\t')
+            if any(len(row) > 1 for row in test_reader):
+                class TabDialect(csv.excel):
+                    delimiter = '\t'
+                return TabDialect()
+        except Exception:
+            pass # Fall through
+
+    # Fallback to default Sniffer behavior (which often defaults to comma)
     try:
-        dialect = sniffer.sniff(data[:4096], delimiters=",\t,") # Only comma and tab if semicolon isn't found
+        sniffer = csv.Sniffer()
+        dialect = sniffer.sniff(data[:4096]) # Use default delimiters for sniffer
+        return dialect
     except Exception:
-        dialect = csv.get_dialect("excel")
-    return dialect
+        return csv.get_dialect("excel") # Default to excel dialect (comma-separated by default for excel)
 
 def normalize_header(h: str) -> str:
     return re.sub(r"\s+", "", (h or "").strip().lower())
@@ -90,7 +127,7 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
     """
     CSV attendu (souple) :
     - question : colonne 'question' (ou 1re colonne si pas d'en-tête)
-    - texte verso : colonne 'texte' / 'reponse' / 'réponse' / 'answer' (ou 2e/3e colonne selon présence d'en-tête)
+    - texte verso : colonne 'texte' / 'reponse' / 'r\u00e9ponse' / 'answer' (ou 2e/3e colonne selon pr\u00e9sence d'en-tête)
     - image recto : colonne 'image_recto' / 'imagerecto' (ou 3e colonne si pas d'en-tête)
     """
     # Use io.StringIO to treat the string content as a file
@@ -104,7 +141,7 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
 
     first = rows[0]
     norm_first = [normalize_header(x) for x in first]
-    has_header = any(x in ("question","q","texte","text","reponse","réponse","answer","reponseverso","verso", "image_recto", "imagerecto") for x in norm_first)
+    has_header = any(x in ("question","q","texte","text","reponse","r\u00e9ponse","answer","reponseverso","verso", "image_recto", "imagerecto") for x in norm_first)
 
     def get_field(d: Dict[str,str], keys: List[str], fallback: str="") -> str:
         for k in keys:
@@ -126,7 +163,8 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
             question_text = q_raw # Default to raw question
 
             # Try to find (color_name_or_hex) at the BEGINNING of the string, case-insensitive
-            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*;?\s*(.*)$', q_raw, re.IGNORECASE)
+            # Removed ;? from regex as it's a delimiter and shouldn't be in q_raw
+            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*(.*)$', q_raw, re.IGNORECASE)
             if match_beginning:
                 card_color_string = match_beginning.group(1).strip()
                 question_text = match_beginning.group(2).strip()
@@ -137,11 +175,11 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
                     card_color_string = match_end.group(1).strip()
                     question_text = re.sub(r'\s*\(([^)]+)\)\s*$', '', q_raw, flags=re.IGNORECASE).strip()
 
-            txt = get_field(d, ["texte","text","reponse","réponse","answer","verso","reponseverso"])
+            txt = get_field(d, ["texte","text","reponse","r\u00e9ponse","answer","verso","reponseverso"])
             card_image_recto = get_field(d, ["image_recto", "imagerecto"])
             out.append({"question": question_text, "texte": txt, "card_color_key": card_color_string, "image_recto": card_image_recto})
     else:
-        # Sans en-tête : col1=question, col2=texte, col3=image_recto (si présente)
+        # Sans en-tête : col1=question, col2=texte, col3=image_recto (si pr\u00e9sente)
         for r in rows:
             if not any(str(x).strip() for x in r):
                 continue
@@ -150,7 +188,8 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
             question_text = q_raw
 
             # Try to find (color_name_or_hex) at the BEGINNING of the string, case-insensitive
-            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*;?\s*(.*)$', q_raw, re.IGNORECASE)
+            # Removed ;? from regex as it's a delimiter and shouldn't be in q_raw
+            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*(.*)$', q_raw, re.IGNORECASE)
             if match_beginning:
                 card_color_string = match_beginning.group(1).strip()
                 question_text = match_beginning.group(2).strip()
@@ -208,8 +247,8 @@ def draw_centered_text_in_box(c: canvas.Canvas, x: float, y: float, w: float, h:
     inner_w = w - 2 * pad
     inner_h = h - 2 * pad
 
-    # Replace semicolons with line breaks for display
-    formatted_text = (text or "").replace(";", "<br/>").replace("\n","<br/>")
+    # Replace newlines with line breaks for display, keeping semicolons as-is
+    formatted_text = (text or "").replace("\n","<br/>")
     p = Paragraph(formatted_text if formatted_text.strip() else "&nbsp;", style)
 
     # Get the actual height the paragraph would take if wrapped within inner_w
@@ -366,12 +405,12 @@ def build_pdf(cards: List[Dict[str,str]], default_back_color: colors.Color, outp
 st.title("Générateur de cartes à tout faire")
 
 st.write("Uploadez votre fichier CSV et un fichier ZIP d'images (facultatif) pour générer 10 cartes recto/verso sur une feuille A4 pdf.")
-st.text("Le contenu du fichier CSV est constituée au maximum de 10 lignes du type :")
-st.text("ma question1 (couleur_ou_#CODEHEX) ; ma réponse1 ; mon_image_recto.png")
-st.text("ma question2 (couleur_ou_#CODEHEX) ; ma réponse2")
+st.text("Le contenu du fichier CSV est constitu\u00e9e au maximum de 10 lignes du type :")
+st.text("ma question1 (couleur_ou_#CODEHEX) ; ma r\u00e9ponse1 ; mon_image_recto.png")
+st.text("ma question2 (couleur_ou_#CODEHEX) ; ma r\u00e9ponse2")
 st.text("etc.")
-st.write("(couleur_ou_#CODEHEX) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune ou un code hexadécimal comme #FF00FF ou #F00. ")
-st.write("Si aucune couleur n'est indiquée (maquestion1 ; maréponse1) alors la couleur par défaut du recto est le bleu.")
+st.write("(couleur_ou_#CODEHEX) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune ou un code hexad\u00e9cimal comme #FF00FF ou #F00. ")
+st.write("Si aucune couleur n'est indiqu\u00e9e (maquestion1 ; mar\u00e9ponse1) alors la couleur par d\u00e9faut du recto est le bleu.")
 st.write("Le nom du fichier image dans la 3e colonne du CSV doit correspondre exactement au nom d'un fichier PNG/JPG dans le ZIP d'images recto.")
 
 # CSV Upload
@@ -382,7 +421,7 @@ uploaded_recto_images_zip = st.file_uploader("Uploader un fichier ZIP d'images P
 
 recto_images_dict = {}
 if uploaded_recto_images_zip:
-    st.info("Décompression des images de recto...")
+    st.info("D\u00e9compression des images de recto...")
     with tempfile.TemporaryDirectory() as tempdir:
         with zipfile.ZipFile(uploaded_recto_images_zip, 'r') as zip_ref:
             zip_ref.extractall(tempdir)
@@ -395,9 +434,9 @@ if uploaded_recto_images_zip:
                 except Exception as e:
                     st.warning(f"Impossible de charger l'image de recto {filename}: {e}")
     if recto_images_dict:
-        st.success(f"{len(recto_images_dict)} images de recto chargées depuis le fichier ZIP.")
+        st.success(f"{len(recto_images_dict)} images de recto charg\u00e9es depuis le fichier ZIP.")
     else:
-        st.warning("Aucune image valide trouvée dans le fichier ZIP des images de recto.")
+        st.warning("Aucune image valide trouv\u00e9e dans le fichier ZIP des images de recto.")
 
 
 if uploaded_csv_file is None:
@@ -408,24 +447,24 @@ elif uploaded_csv_file is not None:
     csv_name = uploaded_csv_file.name
 
     color_name_from_filename, default_back_color = pick_color_from_filename(csv_name)
-    st.info(f"Couleur par défaut détectée (via nom de fichier) : {color_name_from_filename}")
+    st.info(f"Couleur par d\u00e9faut d\u00e9tect\u00e9e (via nom de fichier) : {color_name_from_filename}")
 
     cards = read_cards_from_csv(csv_content)
 
-    st.info(f"Lignes lues : {len(cards)} (on utilise les {NB_CARTES} premières)")
+    st.info(f"Lignes lues : {len(cards)} (on utilise les {NB_CARTES} premi\u00e8res)")
 
-    if st.button("Générer le PDF"):
+    if st.button("G\u00e9n\u00e9rer le PDF"):
         if cards:
             output_buffer = io.BytesIO()
             # Pass the dictionary of recto images to build_pdf
             build_pdf(cards, default_back_color, output_buffer, uploaded_recto_images=recto_images_dict)
 
-            st.success(f"PDF généré : {OUTPUT_PDF}")
+            st.success(f"PDF g\u00e9n\u00e9r\u00e9 : {OUTPUT_PDF}")
             st.download_button(
-                label="Télécharger le PDF",
+                label="T\u00e9l\u00e9charger le PDF",
                 data=output_buffer.getvalue(),
                 file_name=OUTPUT_PDF,
                 mime="application/pdf"
             )
         else:
-            st.error("Aucune carte n'a pu être lue depuis le fichier CSV. La génération du PDF est annulée.")
+            st.error("Aucune carte n'a pu \u00eatre lue depuis le fichier CSV. La g\u00e9n\u00e9ration du PDF est annul\u00e9e.")
