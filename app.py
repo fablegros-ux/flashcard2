@@ -36,12 +36,12 @@ COLOR_MAP = {
     "rose": colors.HexColor("#E85D9E"),
     "vert": colors.HexColor("#2ECC71"),
     "jaune": colors.HexColor("#F1C40F"),
-    "blanc"; colors,HexColor("#FFFFFF"),
+    "blanc": colors,HexColor("#FFFFFF"),
 }
 
 def pick_color_from_filename(filename: str) -> Tuple[str, colors.Color]:
     low = filename.lower()
-    for key in ["bleu", "rouge", "rose", "vert", "jaune"]:
+    for key in ["bleu", "rouge", "rose", "vert", "jaune", "blanc"]:
         if key in low:
             return key, COLOR_MAP[key]
     return "bleu", COLOR_MAP["bleu"]
