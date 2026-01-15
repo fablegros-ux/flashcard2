@@ -24,7 +24,7 @@ GAP = 0.35 * cm              # espace entre cartes (découpe)
 BORDER_WIDTH = 1
 ELEMENT_SPACING = 0.8 * cm   # Espace entre les éléments (texte, image) et les bords de la carte
 
-# Couleurs (verso) selon le nom du fichier
+# Couleurs (recto) selon le nom du fichier
 COLOR_MAP = {
     "bleu": colors.HexColor("#2D6CDF"),
     "rouge": colors.HexColor("#D64541"),
@@ -40,6 +40,31 @@ def pick_color_from_filename(filename: str) -> Tuple[str, colors.Color]:
             return key, COLOR_MAP[key]
     return "bleu", COLOR_MAP["bleu"]
 
+def parse_color_string(color_str: str, default_color: colors.Color) -> colors.Color:
+    if not color_str:
+        return default_color
+
+    # Try to match predefined color names
+    if color_str.lower() in COLOR_MAP:
+        return COLOR_MAP[color_str.lower()]
+
+    # Try to match hexadecimal color codes (3 or 6 digits)
+    hex_match = re.match(r'^#?([0-9a-fA-F]{3}(?:[0-9a-fA-F]{3})?)$', color_str.strip())
+    if hex_match:
+        # Ensure it's a 6-digit hex code for ReportLab
+        hex_code_val = hex_match.group(1)
+        if len(hex_code_val) == 3:
+            hex_code_val = ''.join([c*2 for c in hex_code_val]) # Expand 3-digit to 6-digit
+        hex_code = "#" + hex_code_val
+        try:
+            return colors.HexColor(hex_code)
+        except Exception:
+            # Fallback if HexColor parsing fails
+            pass
+            
+    # If neither, return default color
+    return default_color
+
 def is_dark(c: colors.Color) -> bool:
     r, g, b = c.red, c.green, c.blue
     lum = 0.2126*r + 0.7152*g + 0.0722*b
@@ -47,8 +72,13 @@ def is_dark(c: colors.Color) -> bool:
 
 def sniff_dialect(data: str) -> csv.Dialect:
     sniffer = csv.Sniffer()
+    # Force semicolon if present, otherwise try to sniff
+    if ';' in data[:4096]:
+        class SemicolonDialect(csv.excel):
+            delimiter = ';'
+        return SemicolonDialect()
     try:
-        dialect = sniffer.sniff(data[:4096], delimiters=";,|, ,\t,")
+        dialect = sniffer.sniff(data[:4096], delimiters=",\t,") # Only comma and tab if semicolon isn't found
     except Exception:
         dialect = csv.get_dialect("excel")
     return dialect
@@ -92,39 +122,48 @@ def read_cards_from_csv(csv_file_content: str) -> List[Dict[str, str]]:
                 continue
             d = {headers[i]: (r[i].strip() if i < len(r) else "") for i in range(len(headers))}
             q_raw = get_field(d, ["question","q"])
-            card_color_key = None
+            card_color_string = None
             question_text = q_raw # Default to raw question
 
-            # Regex to find (color) at the end of the string, case-insensitive
-            match = re.search(r'\(([^)]+)\)\s*$', q_raw, re.IGNORECASE)
-            if match:
-                extracted_color_name = match.group(1).lower().strip()
-                if extracted_color_name in COLOR_MAP:
-                    card_color_key = extracted_color_name
+            # Try to find (color_name_or_hex) at the BEGINNING of the string, case-insensitive
+            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*;?\s*(.*)$', q_raw, re.IGNORECASE)
+            if match_beginning:
+                card_color_string = match_beginning.group(1).strip()
+                question_text = match_beginning.group(2).strip()
+            else:
+                # If not at the beginning, try to find (color_name_or_hex) at the END of the string
+                match_end = re.search(r'\s*\(([^)]+)\)\s*$', q_raw, re.IGNORECASE)
+                if match_end:
+                    card_color_string = match_end.group(1).strip()
                     question_text = re.sub(r'\s*\(([^)]+)\)\s*$', '', q_raw, flags=re.IGNORECASE).strip()
 
             txt = get_field(d, ["texte","text","reponse","réponse","answer","verso","reponseverso"])
             card_image_recto = get_field(d, ["image_recto", "imagerecto"])
-            out.append({"question": question_text, "texte": txt, "card_color_key": card_color_key, "image_recto": card_image_recto})
+            out.append({"question": question_text, "texte": txt, "card_color_key": card_color_string, "image_recto": card_image_recto})
     else:
         # Sans en-tête : col1=question, col2=texte, col3=image_recto (si présente)
         for r in rows:
             if not any(str(x).strip() for x in r):
                 continue
             q_raw = (r[0].strip() if len(r) > 0 else "")
-            card_color_key = None
+            card_color_string = None
             question_text = q_raw
 
-            match = re.search(r'\(([^)]+)\)\s*$', q_raw, re.IGNORECASE)
-            if match:
-                extracted_color_name = match.group(1).lower().strip()
-                if extracted_color_name in COLOR_MAP:
-                    card_color_key = extracted_color_name
+            # Try to find (color_name_or_hex) at the BEGINNING of the string, case-insensitive
+            match_beginning = re.match(r'^\s*\(([^)]+)\)\s*;?\s*(.*)$', q_raw, re.IGNORECASE)
+            if match_beginning:
+                card_color_string = match_beginning.group(1).strip()
+                question_text = match_beginning.group(2).strip()
+            else:
+                # If not at the beginning, try to find (color_name_or_hex) at the END of the string
+                match_end = re.search(r'\s*\(([^)]+)\)\s*$', q_raw, re.IGNORECASE)
+                if match_end:
+                    card_color_string = match_end.group(1).strip()
                     question_text = re.sub(r'\s*\(([^)]+)\)\s*$', '', q_raw, flags=re.IGNORECASE).strip()
 
             txt = (r[1].strip() if len(r) > 1 else "") # Second column for verso text
             card_image_recto = (r[2].strip() if len(r) > 2 else "") # Third column for recto image
-            out.append({"question": question_text, "texte": txt, "card_color_key": card_color_key, "image_recto": card_image_recto})
+            out.append({"question": question_text, "texte": txt, "card_color_key": card_color_string, "image_recto": card_image_recto})
 
     return out
 
@@ -169,7 +208,9 @@ def draw_centered_text_in_box(c: canvas.Canvas, x: float, y: float, w: float, h:
     inner_w = w - 2 * pad
     inner_h = h - 2 * pad
 
-    p = Paragraph((text or "").replace("\n","<br/>") if (text or "").strip() else "&nbsp;", style)
+    # Replace semicolons with line breaks for display
+    formatted_text = (text or "").replace(";", "<br/>").replace("\n","<br/>")
+    p = Paragraph(formatted_text if formatted_text.strip() else "&nbsp;", style)
 
     # Get the actual height the paragraph would take if wrapped within inner_w
     # We pass a temporary canvas and a very large height to allow it to compute its natural height
@@ -209,8 +250,8 @@ def build_pdf(cards: List[Dict[str,str]], default_back_color: colors.Color, outp
         x, y = card_xy(grid, col, row)
 
         # Determine the background color for the current card
-        card_specific_color_key = cards10[i].get("card_color_key")
-        current_back_color = COLOR_MAP.get(card_specific_color_key, default_back_color)
+        card_specific_color_string = cards10[i].get("card_color_key")
+        current_back_color = parse_color_string(card_specific_color_string, default_back_color)
 
         # Recto text style: color adapted to background (depends on current_back_color)
         style_recto = ParagraphStyle(
@@ -326,10 +367,10 @@ st.title("Générateur de cartes à tout faire")
 
 st.write("Uploadez votre fichier CSV et un fichier ZIP d'images (facultatif) pour générer 10 cartes recto/verso sur une feuille A4 pdf.")
 st.text("Le contenu du fichier CSV est constituée au maximum de 10 lignes du type :")
-st.text("ma question1 (couleur) ; ma réponse1 ; mon_image_recto.png")
-st.text("ma question2 (couleur) ; ma réponse2")
+st.text("ma question1 (couleur_ou_#CODEHEX) ; ma réponse1 ; mon_image_recto.png")
+st.text("ma question2 (couleur_ou_#CODEHEX) ; ma réponse2")
 st.text("etc.")
-st.write("(couleur) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune. ")
+st.write("(couleur_ou_#CODEHEX) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune ou un code hexadécimal comme #FF00FF ou #F00. ")
 st.write("Si aucune couleur n'est indiquée (maquestion1 ; maréponse1) alors la couleur par défaut du recto est le bleu.")
 st.write("Le nom du fichier image dans la 3e colonne du CSV doit correspondre exactement au nom d'un fichier PNG/JPG dans le ZIP d'images recto.")
 
@@ -366,10 +407,11 @@ elif uploaded_csv_file is not None:
     csv_content = uploaded_csv_file.getvalue().decode("utf-8")
     csv_name = uploaded_csv_file.name
 
-    color_name, default_back_color = pick_color_from_filename(csv_name)
-    st.info(f"Couleur par défaut détectée (via nom de fichier) : {color_name}")
+    color_name_from_filename, default_back_color = pick_color_from_filename(csv_name)
+    st.info(f"Couleur par défaut détectée (via nom de fichier) : {color_name_from_filename}")
 
     cards = read_cards_from_csv(csv_content)
+
     st.info(f"Lignes lues : {len(cards)} (on utilise les {NB_CARTES} premières)")
 
     if st.button("Générer le PDF"):
