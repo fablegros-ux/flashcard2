@@ -1,3 +1,4 @@
+# cell_id: 9961351c - Mis à jour le 2024-05-18 10:48 (Paris)
 import os, re, csv, io, zipfile
 import tempfile
 from typing import List, Dict, Tuple, Optional
@@ -386,7 +387,7 @@ def build_pdf(cards: List[Dict[str,str]], default_back_color: colors.Color, outp
 
         draw_centered_text_in_box(c, x, y, grid.card_w, grid.card_h, cards10[i].get("texte", ""), style_verso)
     
-    draw_cut_marks(c, grid)
+    # Removed draw_cut_marks for verso page as requested.
     c.save()
 
     # Cleanup temporary files created during image processing
