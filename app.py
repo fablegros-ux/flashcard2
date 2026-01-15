@@ -36,6 +36,7 @@ COLOR_MAP = {
     "rose": colors.HexColor("#E85D9E"),
     "vert": colors.HexColor("#2ECC71"),
     "jaune": colors.HexColor("#F1C40F"),
+    "blanc"; colors,HexColor("#FFFFFF"),
 }
 
 def pick_color_from_filename(filename: str) -> Tuple[str, colors.Color]:
@@ -409,7 +410,7 @@ st.text("Le contenu du fichier CSV est constitu\u00e9e au maximum de 10 lignes d
 st.text("ma question1 (couleur_ou_#CODEHEX) ; ma r\u00e9ponse1 ; mon_image_recto.png")
 st.text("ma question2 (couleur_ou_#CODEHEX) ; ma r\u00e9ponse2")
 st.text("etc.")
-st.write("(couleur_ou_#CODEHEX) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune ou un code hexad\u00e9cimal comme #FF00FF ou #F00. ")
+st.write("(couleur_ou_#CODEHEX) est la couleur du recto de la carte - choix possibles : bleu, rouge, rose, vert, jaune, blanc ou un code hexad\u00e9cimal comme #FF00FF. ")
 st.write("Si aucune couleur n'est indiqu\u00e9e (maquestion1 ; mar\u00e9ponse1) alors la couleur par d\u00e9faut du recto est le bleu.")
 st.write("Le nom du fichier image dans la 3e colonne du CSV doit correspondre exactement au nom d'un fichier PNG/JPG dans le ZIP d'images recto.")
 
